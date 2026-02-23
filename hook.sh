@@ -94,8 +94,8 @@ deploy_cert() {
   # systemctl reload nginx
 
   # functions to be implemented in hook.inc
-  make_mail_cert $DOMAIN
-  make_apache    $DOMAIN
+  make_qmail_certs $DOMAIN
+  restart_apache
 }
 
 deploy_ocsp() {
