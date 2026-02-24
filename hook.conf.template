@@ -1,4 +1,4 @@
-# DEFAULT_CERTNAME will be saved in control/servercert.pem,
+# DEFAULT_CERTNAME will be saved in control/servercert.pem
 DEFAULT_CERTNAME=smtp.domain.tld
 
 # Put 1 to enable cert creation for SNI (Server Name Indication).
@@ -8,13 +8,14 @@ ENABLE_SNI=1
 
 # All the other non default certificates will be saved
 # in control/servercerts/<FQDN>/servercert.pem.
-# Put here the 1st domain in each row of domains.txt (first one excluded)
+# Put here the domain that appears first in each line of the domains.txt 
+# file, excluding the first line.
 # This is used only if ENABLE_SNI=1
 SNI_CERTS=(
 )
 
 # dovecot config file where to add SNI local_name settings
-# for each domain defined in SNI_CERT. The program won't
+# for each domain defined in SNI_CERTS. The program won't
 # overwrite if it finds the DOMAIN already.
 DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
 

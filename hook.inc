@@ -19,7 +19,7 @@ send_alert()
     | sendmail $OWNER_EMAIL
 }
 
-# Add SNI block to dovecot conf for a specific protocol if it does not already exist
+# Add SNI block to dovecot conf. It exit safely if it already exists.
 # File modified is defined in DOVECOT_SNI_CONF
 add_sni_block() {
   CERT=$1
@@ -35,7 +35,7 @@ add_sni_block() {
   # Check if the local_name block already exists in $DOVECOT_SNI_CONF
   if ! grep -qE "^local_name[[:space:]]+${DOMAIN}[[:space:]]*\{" "${DOVECOT_SNI_CONF}"; then
 
-    # Append configuration block to $DOVECOT_SNI_CONF
+    # Append $DOMAIN configuration block to $DOVECOT_SNI_CONF
     cat >> "$DOVECOT_SNI_CONF" <<- EOF
 
 	local_name ${DOMAIN} {
@@ -51,7 +51,7 @@ EOF
   # Check if the local_name block already exists in $DOVECOT_SNI_CONF
   if ! grep -qE "^local_name[[:space:]]+\*\.${DOMAIN}[[:space:]]*\{" "${DOVECOT_SNI_CONF}"; then
 
-    # Append configuration block to $DOVECOT_SNI_CONF
+    # Append *.$DOMAIN configuration block to $DOVECOT_SNI_CONF
     cat >> "$DOVECOT_SNI_CONF" <<- EOF
 	local_name *.${DOMAIN} {
 	  ssl_server_cert_file = ${CERTSDIR}/${CERT}/fullchain.pem
