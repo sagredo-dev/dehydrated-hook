@@ -87,14 +87,14 @@ make_qmail_certs() {
     CERTDIR=${CERTSDIR}/${DEFAULT_CERTNAME}
     cp -p ${QMAILDIR}/control/*.pem ${QMAILDIR}/control/certs_backup/
     cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercert.pem
-    chown vpopmail:vchkpw ${QMAILDIR}/control/*.pem
+    chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/*.pem
     chmod o-r ${QMAILDIR}/control/*.pem
   elif [ "$ENABLE_SNI" == "1" ]; then
   # install the other non default certs in control/servercerts/<FQDN>/servercert.pem
     # create servercerts dir
     if [ ! -d ${QMAILDIR}/control/servercerts ]; then
       mkdir -p ${QMAILDIR}/control/servercerts
-      chown -R vpopmail:vchkpw ${QMAILDIR}/control/servercerts
+      chown -R ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts
       chmod 750 ${QMAILDIR}/control/servercerts
     fi
 
@@ -113,7 +113,7 @@ make_qmail_certs() {
       # create the control/servertcerts/<FQDN> dir
       if [ ! -d ${QMAILDIR}/control/servercerts/${CERT} ]; then
         mkdir -p ${QMAILDIR}/control/servercerts/${CERT}
-        chown -R vpopmail:vchkpw ${QMAILDIR}/control/servercerts/${CERT}
+        chown -R ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts/${CERT}
         chmod -R o-r ${QMAILDIR}/control/servercerts/${CERT}
       else
         # backup if it already exists
@@ -123,7 +123,7 @@ make_qmail_certs() {
       # assemble the cert for qmail
       CERTDIR=${CERTSDIR}/${CERT}
       cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercerts/${CERT}/servercert.pem
-      chown vpopmail:vchkpw ${QMAILDIR}/control/servercerts/${CERT}/*.pem
+      chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts/${CERT}/*.pem
       chmod o-r ${QMAILDIR}/control/servercerts/${CERT}/*.pem
 
       # setup SNI in dovecot for the domain $DOMAIN

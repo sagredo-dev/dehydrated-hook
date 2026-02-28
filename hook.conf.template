@@ -23,6 +23,11 @@ DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
 # nor to setup SNI for dovecot, in case this is not a mail server
 MAKE_MAIL_CERTS=1
 
+# Put here the user and group who owns the qmail certificates.
+# It has to be the user who runs qmail-smtpd.
+CERT_UID=vpopmail
+CERT_GID=vchkpw
+
 CERTSDIR=/etc/dehydrated/certs
 QMAILDIR=/var/qmail
 QMAILCTL=${QMAILDIR}/bin/qmailctl
