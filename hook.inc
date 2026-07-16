@@ -1,157 +1,366 @@
 #!/usr/bin/env bash
+#
+# hook script for qmail, dovecot, apache.
+# It can handle SNI or skip mail sertver cert config.
+# See hook.conf.template for more info
+#
+# More info
+# here https://notes.sagredo.eu/en/qmail-notes-185/installing-a-let-s-encrypt-certificate-for-your-qmail-dovecot-and-apache-servers-233.html
+# and here
+# https://notes.sagredo.eu/en/qmail-notes-185/server-name-indication-sni-for-qmail-and-dovecot-331.html
+#
+# Roberto Puzzanghera [notes at sagredo dot eu - https://notes.sagredo.eu]
+#
 
-# Configuration for the script:
-CONF_FILE="$(dirname $0)/$(basename $0 .sh).conf"
-[ -f ${CONF_FILE} ] && . ${CONF_FILE}
+# Configuration for the script
+CONF_FILE="$(dirname $0)/hook.conf"
+if [ -r $CONF_FILE ]; then
+  . $CONF_FILE
+else
+  echo "Configuration file not found: $CONF_FILE"
+  return 1 2>/dev/null || exit 1
+fi
 
-send_alert()
+
+# Get vdominfo path
+VDOMINFO=${VPOPMAILDIR}/bin/vdominfo
+if [ ! -x $VDOMINFO ]; then
+  echo "${VDOMINFO} not found"
+  exit 1
+fi
+
+
+# Get the default cert name by reading the 1st domain
+# in 1st line of domain.txt
+#
+# smtp.example.com imap.example.com pop3.example.com
+# smtp.example2.com imap.example2.com pop3.example2.com
+# returns smtp.example.com
+get_default_cert()
 {
-  # Send email alert to admin $1 is DOMAIN
-
-  CERT_PATH=/etc/dehydrated/certs/$1/cert.pem
-  EXPIRY=$(openssl x509 -noout -dates -in ${CERT_PATH} |grep notAfter |cut -d= -f2- |tr -s ' ' |cut -d' ' -f1,2,4)
-  DAYS_LEFT=$((($(date -d "$EXPIRY" +%s) - $(date -d "$(date +%F)" +%s))/86400))
-
-  cat $MSG_TEMPLATE \
-    | sed -e "s,@DOMAIN@,$1,g" \
-          -e "s,@FROM_EMAIL@,$FROM_EMAIL,g" \
-          -e "s,@OWNER_EMAIL@,$OWNER_EMAIL,g" \
-    | sendmail $OWNER_EMAIL
+  local CN
+  read -r CN _ < "$DOMAINS_TXT"
+  echo "$CN"
 }
 
-# Add SNI block to dovecot conf. It exit safely if it already exists.
-# File modified is defined in DOVECOT_SNI_CONF
-add_sni_block() {
-  CERT=$1
 
-  # touch $DOVECOT_SNI_CONF if it does not exist already
-  if [ ! -e $DOVECOT_SNI_CONF ]; then
-    touch $DOVECOT_SNI_CONF
+# Read domains.txt and return each certificate entry with its type.
+# The first domain is the default certificate, all following domains use SNI.
+read_domains_txt()
+{
+  local DEFAULT=1
+
+  while read -r CN SAN; do
+    # skip empty lines
+    [ -z "$CN" ] && continue
+    # skip comments
+    case "$CN" in
+      \#*) continue ;;
+    esac
+    if [ "$DEFAULT" -eq 1 ]; then
+      DEFAULT=0
+      echo "DEFAULT $CN"
+    else
+      echo "SNI $CN"
+    fi
+  done < $DOMAINS_TXT
+}
+
+
+# Find the vpopmail domain matching a certificate CN.
+# Domains and aliases are considered valid entries.
+find_vpopmail_domain()
+{
+  local CN=$1
+  local DOMAIN
+
+  while read -r DOMAIN; do
+    # skip empty lines
+    [ -z "$DOMAIN" ] && continue
+    case "$CN" in
+      *.${DOMAIN})
+        echo ${DOMAIN}
+        return 0
+        ;;
+    esac
+  done < <(${VDOMINFO} -n | sed 's/ .*//' | awk '{ print length, $0 }' | sort -rn | cut -d' ' -f2-)
+
+  return 1
+}
+
+
+# Check if the certificate files exist.
+certificate_exists()
+{
+  local CN=$1
+  local CERTDIR=${CERTSDIR}/${CN}
+
+  [ -r ${CERTDIR}/fullchain.pem ] && [ -r ${CERTDIR}/privkey.pem ]
+}
+
+
+# Install the default qmail certificate.
+# The default certificate is the first entry in domains.txt.
+install_qmail_default_cert()
+{
+  local CN=$1
+  local CERTDIR=${CERTSDIR}/${CN}
+
+  if ! certificate_exists $CN; then
+    echo "Certificate not found: ${CN}"
+    return 1
   fi
 
-  # Calculate the domain, so that mx.domain.tld will get domain.tld
-  DOMAIN=$(echo ${CERT} | sed 's/^\([^\.]*\)\.\([^\.]*\)\./\2\./')
+  cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercert.pem
+  chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercert.pem
+  chmod 640 ${QMAILDIR}/control/servercert.pem
+  echo "Installed default qmail certificate for ${CN} in ${QMAILDIR}/control/servercert.pem"
+}
 
-  # Check if the local_name block already exists in $DOVECOT_SNI_CONF
-  if ! grep -qE "^local_name[[:space:]]+${DOMAIN}[[:space:]]*\{" "${DOVECOT_SNI_CONF}"; then
 
-    # Append $DOMAIN configuration block to $DOVECOT_SNI_CONF
-    cat >> "$DOVECOT_SNI_CONF" <<- EOF
+# Install a qmail SNI certificate.
+# The certificate name is the CN of the certificate entry.
+install_qmail_sni_cert()
+{
+  local CN=$1
+  local CERTDIR=${CERTSDIR}/${CN}
+  local TARGETDIR=${QMAILDIR}/control/servercerts/${CN}
 
-	local_name ${DOMAIN} {
-	  ssl_server_cert_file = ${CERTSDIR}/${CERT}/fullchain.pem
-	  ssl_server_key_file  = ${CERTSDIR}/${CERT}/privkey.pem
-	}
-EOF
-  echo "Added ${DOMAIN} block to ${DOVECOT_SNI_CONF}"
-  else
-    echo "${DOMAIN} block already exists in ${DOVECOT_SNI_CONF}"
+  if ! certificate_exists $CN; then
+    echo "Certificate not found: ${CN}"
+    return 1
   fi
 
-  # Check if the local_name block already exists in $DOVECOT_SNI_CONF
-  if ! grep -qE "^local_name[[:space:]]+\*\.${DOMAIN}[[:space:]]*\{" "${DOVECOT_SNI_CONF}"; then
+  mkdir -p ${TARGETDIR}
+  cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${TARGETDIR}/servercert.pem
+  chown ${CERT_UID}:${CERT_GID} ${TARGETDIR}/servercert.pem
+  chmod 640 ${TARGETDIR}/servercert.pem
 
-    # Append *.$DOMAIN configuration block to $DOVECOT_SNI_CONF
-    cat >> "$DOVECOT_SNI_CONF" <<- EOF
-	local_name *.${DOMAIN} {
-	  ssl_server_cert_file = ${CERTSDIR}/${CERT}/fullchain.pem
-	  ssl_server_key_file  = ${CERTSDIR}/${CERT}/privkey.pem
-	}
-EOF
-  echo "Added *.${DOMAIN} block to ${DOVECOT_SNI_CONF}"
-  else
-    echo "*.${DOMAIN} block already exists in ${DOVECOT_SNI_CONF}"
+  echo "Installed qmail certificate for ${CN} in ${TARGETDIR}/servercert.pem"
+}
+
+
+# Synchronize a single qmail certificate.
+# Called by dehydrated deploy_cert.
+sync_qmail_cert()
+{
+  local CN=$1
+  local DEFAULT
+
+  DEFAULT=$(get_default_cert)
+
+  if [ "$CN" = "$DEFAULT" ]; then
+    install_qmail_default_cert $CN
+  elif [ "$ENABLE_SNI" = "1" ]; then
+    install_qmail_sni_cert $CN
   fi
 }
 
-make_qmail_certs() {
-  # backup/assemble/copy the qmail certificate
-  # you can avoid the call to this function in hook.conf if this is not needed
 
-  # skip if we don't want to build certs for qmail (this is not a mail server)
-  if [ "$MAKE_MAIL_CERTS" != "1" ]; then
-    exit 0
+# Synchronize qmail certificates from domains.txt.
+sync_qmail_certificates()
+{
+  while read TYPE CN; do
+    case "$TYPE" in
+      DEFAULT)
+        install_qmail_default_cert $CN
+        ;;
+      SNI)
+        if [ "$ENABLE_SNI" = "1" ]; then
+          install_qmail_sni_cert $CN
+        fi
+        ;;
+    esac
+  done < <(read_domains_txt)
+}
+
+
+# Return success if the dovecot SNI block already exists.
+dovecot_sni_block_exists()
+{
+  local DOMAIN=$1
+
+  grep -Fq "local_name ${DOMAIN} {" ${DOVECOT_SNI_CONF}
+}
+
+
+# Add dovecot SNI blocks for a certificate.
+# The certificate is identified by its dehydrated certificate name.
+add_dovecot_sni_block()
+{
+  local CERTNAME=$1
+  local DOMAIN=$(find_vpopmail_domain ${CERTNAME})
+
+  if [ -z "$DOMAIN" ]; then
+    echo "Cannot find vpopmail domain for ${CERTNAME}"
+    return 1
   fi
 
-  DOMAIN=$1
+  cat >> ${DOVECOT_SNI_CONF} << EOF
+local_name ${DOMAIN} {
+  ssl_server_cert_file = ${CERTSDIR}/${CERTNAME}/fullchain.pem
+  ssl_server_key_file = ${CERTSDIR}/${CERTNAME}/privkey.pem
+}
+local_name *.${DOMAIN} {
+  ssl_server_cert_file = ${CERTSDIR}/${CERTNAME}/fullchain.pem
+  ssl_server_key_file = ${CERTSDIR}/${CERTNAME}/privkey.pem
+}
 
-  # qmail cert backup
-  if [ ! -d "${QMAILDIR}/control/certs_backup" ]; then
-    mkdir -p ${QMAILDIR}/control/certs_backup
+EOF
+
+  echo "Added dovecot SNI configuration for ${DOMAIN} in ${DOVECOT_SNI_CONF}"
+}
+
+
+# Synchronize a single dovecot SNI certificate.
+# Called by dehydrated deploy_cert.
+sync_dovecot_sni_cert()
+{
+  local CERTNAME=$1
+  local DEFAULT
+  local DOMAIN
+
+  if [ "$ENABLE_SNI" != "1" ]; then
+    return 0
   fi
 
-  # install the certificate in control/servercert.pem
-  # if $DOMAIN is the default cert name.
-  if [ "$DOMAIN" = "$DEFAULT_CERTNAME" ]; then
-    echo "Setting up the default cert for qmail: $DEFAULT_CERTNAME -> ${QMAILDIR}/control/servercert.pem"
-    CERTDIR=${CERTSDIR}/${DEFAULT_CERTNAME}
-    cp -p ${QMAILDIR}/control/*.pem ${QMAILDIR}/control/certs_backup/
-    cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercert.pem
-    chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/*.pem
-    chmod o-r ${QMAILDIR}/control/*.pem
-  elif [ "$ENABLE_SNI" == "1" ]; then
-  # install the other non default certs in control/servercerts/<FQDN>/servercert.pem
-    # create servercerts dir
-    if [ ! -d ${QMAILDIR}/control/servercerts ]; then
-      mkdir -p ${QMAILDIR}/control/servercerts
-      chown -R ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts
-      chmod 750 ${QMAILDIR}/control/servercerts
+  DEFAULT=$(get_default_cert)
+
+  # The default certificate is managed by dovecot configuration.
+  if [ "$CERTNAME" = "$DEFAULT" ]; then
+    return 0
+  fi
+
+  if ! certificate_exists ${CERTNAME}; then
+    echo "Certificate not found: ${CERTNAME}"
+    return 1
+  fi
+
+  DOMAIN=$(find_vpopmail_domain ${CERTNAME})
+
+  if [ -z "$DOMAIN" ]; then
+    echo "Cannot find vpopmail domain for ${CERTNAME}"
+    return 1
+  fi
+
+  if dovecot_sni_block_exists ${DOMAIN}; then
+    return 0
+  fi
+
+  add_dovecot_sni_block ${CERTNAME}
+}
+
+
+# Rebuild dovecot SNI configuration from domains.txt.
+# The first certificate entry is the default qmail certificate and is skipped.
+rebuild_dovecot_sni_conf()
+{
+  local DEFAULT=1
+  local CERTNAME
+
+  if [ "$ENABLE_SNI" != "1" ]; then
+    return 0
+  fi
+
+  mkdir -p $(dirname ${DOVECOT_SNI_CONF})
+  # Create $DOVECOT_SNI_CONF before rebuilding it
+  cat > ${DOVECOT_SNI_CONF} << EOF
+# ----------------------------------------------------------------------
+# This file is automatically generated by the dehydrated mail
+# certificate management scripts.
+#
+# Do not edit this file manually.
+#
+# The configuration is rebuilt from ${DOMAINS_TXT} and the existing
+# certificates under ${CERTSDIR}.
+#
+# Manual changes will be lost the next time mailcert-sync runs or a
+# certificate is synchronized.
+# ----------------------------------------------------------------------
+
+EOF
+
+  while read -r CERTNAME SAN; do
+    # skip empty lines
+    [ -z "$CERTNAME" ] && continue
+    # skip comments
+    case "$CERTNAME" in
+      \#*) continue ;;
+    esac
+
+    # skip default certificate
+    if [ "$DEFAULT" -eq 1 ]; then
+      DEFAULT=0
+      continue
     fi
 
-    # get the cert to create
-    CERT=""
-    for ELEMENT in "${SNI_CERTS[@]}"; do
-      if [ "${DOMAIN}" == "${ELEMENT}" ]; then
-        CERT=${ELEMENT}
-      fi
-    done
-
-    if [ -n "${CERT}" ]; then
-      # $CERT is the domain claiming for a cert
-      echo "Setting up the cert for qmail: $CERT -> ${QMAILDIR}/control/servercerts/${CERT}"
-
-      # create the control/servertcerts/<FQDN> dir
-      if [ ! -d ${QMAILDIR}/control/servercerts/${CERT} ]; then
-        mkdir -p ${QMAILDIR}/control/servercerts/${CERT}
-        chown -R ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts/${CERT}
-        chmod -R o-r ${QMAILDIR}/control/servercerts/${CERT}
-      else
-        # backup if it already exists
-        cp -rp ${QMAILDIR}/control/servercerts/${CERT} ${QMAILDIR}/control/certs_backup/
-      fi
-
-      # assemble the cert for qmail
-      CERTDIR=${CERTSDIR}/${CERT}
-      cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercerts/${CERT}/servercert.pem
-      chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercerts/${CERT}/*.pem
-      chmod o-r ${QMAILDIR}/control/servercerts/${CERT}/*.pem
-
-      # setup SNI in dovecot for the domain $DOMAIN
-      add_sni_block ${CERT}
+    # skip missing certificates
+    if ! certificate_exists ${CERTNAME}; then
+      echo "Certificate not found: ${CERTNAME}"
+      continue
     fi
+
+    add_dovecot_sni_block ${CERTNAME}
+  done < ${DOMAINS_TXT}
+
+  echo "Rebuilt dovecot SNI configuration in ${DOVECOT_SNI_CONF}"
+}
+
+
+# Synchronize qmail and dovecot certificates.
+# This function is called by mailcert-sync.
+mailcert_sync()
+{
+  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
+    sync_qmail_certificates
   fi
+
+  if [ "$ENABLE_SNI" = "1" ]; then
+    rebuild_dovecot_sni_conf
+  fi
+
   restart_qmail
   restart_dovecot
 }
 
+
+# Send email alert to admin.
+send_alert()
+{
+  local DOMAIN=$1
+  local CERT_PATH=${CERTSDIR}/${DOMAIN}/cert.pem
+  local EXPIRY=$(openssl x509 -noout -dates -in ${CERT_PATH} |grep notAfter |cut -d= -f2- |tr -s ' ' |cut -d' ' -f1,2,4)
+  local DAYS_LEFT=$((($(date -d "$EXPIRY" +%s) - $(date -d "$(date +%F)" +%s))/86400))
+
+  cat $MSG_TEMPLATE \
+    | sed -e "s,@DOMAIN@,$DOMAIN,g" \
+          -e "s,@FROM_EMAIL@,$FROM_EMAIL,g" \
+          -e "s,@OWNER_EMAIL@,$OWNER_EMAIL,g" \
+    | $QMAILDIR/bin/sendmail $OWNER_EMAIL
+}
+
+
+# restart qmail
 restart_qmail() {
-  # restart qmail
   $QMAILCTL restart
 }
 
+
+# restart dovecot
 restart_dovecot() {
-  # restart dovecot
   $DOVECOTCTL stop
   sleep 5
   $DOVECOTCTL start
 }
 
+
+# restart apache
 restart_apache() {
-  # restart apache
   echo "Restarting apache"
   $APACHECTL stop
   $APACHECTL start
 }
+
 
 startup() {
   echo

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#
+# This script serves to sync qmail and dovecot configuration once
+# the sys admin modified domains.txt, with no need to wait for
+# 'dehydrated -c' to run.
+# So if you delete a domain from domains.txt or reorganize the SAN in it,
+# without touching the existing certificates,just run this script.
+
+HOOK_INC=$(dirname $0)/hook.inc
+
+if [ ! -r $HOOK_INC ]; then
+  echo "Cannot find $HOOK_INC"
+  exit 1
+fi
+
+. $HOOK_INC
+
+mailcert_sync

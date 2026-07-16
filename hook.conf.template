@@ -1,43 +1,36 @@
-# DEFAULT_CERTNAME will be saved in control/servercert.pem
-DEFAULT_CERTNAME=smtp.domain.tld
-
-# Put 1 to enable cert creation for SNI (Server Name Indication).
-# SNI is a TLS extension which allows clients to indicate the hostname
-# to connect to before the connection gets encrypted.
-ENABLE_SNI=1
-
-# All the other non default certificates will be saved
-# in control/servercerts/<FQDN>/servercert.pem.
-# Put here the domain that appears first in each line of the domains.txt 
-# file, excluding the first line.
-# This is used only if ENABLE_SNI=1
-SNI_CERTS=(
-)
-
-# dovecot config file where to add SNI local_name settings
-# for each domain defined in SNI_CERTS. The program won't
-# overwrite if it finds the DOMAIN already.
-DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
-
-# Put 0 here if you don't want to build certs for qmail,
-# nor to setup SNI for dovecot, in case this is not a mail server
-MAKE_MAIL_CERTS=1
-
-# Put here the user and group who owns the qmail certificates.
-# It has to be the user who runs qmail-smtpd.
-CERT_UID=vpopmail
-CERT_GID=vchkpw
-
+DOMAINS_TXT=/etc/dehydrated/domains.txt
 CERTSDIR=/etc/dehydrated/certs
 QMAILDIR=/var/qmail
 QMAILCTL=${QMAILDIR}/bin/qmailctl
 DOVECOTCTL=/usr/local/bin/dovecotctl
 APACHECTL=/usr/sbin/apachectl
+# Get vpopmail directory. Ignored if ENABLE_SNI=0
+VPOPMAILDIR=/home/vpopmail
 
 # email address where alerts are sent on failures
 OWNER_EMAIL=owner@domain.tld
+
 # sender address
 FROM_EMAIL=postmaster@domain.tld
+
 # The message template which will be used to draft the email alert
 MSG_TEMPLATE="$(dirname $0)/hook.tpl"
 
+# Put 0 here if you don't want to build certs for qmail,
+# nor to setup SNI for dovecot, in case this is not a mail server
+MAKE_MAIL_CERTS=1
+
+# Put 1 to enable cert creation for SNI (Server Name Indication).
+# SNI is a TLS extension which allows clients to indicate the hostname
+# to connect to before the connection gets encrypted.
+ENABLE_SNI=0
+
+# dovecot config file generated from domains.txt.
+# Do not edit manually.
+# Ignored you have ENABLE_SNI=0
+DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
+
+# Put here the user and group who owns the qmail certificates.
+# It has to be the user who runs qmail-smtpd.
+CERT_UID=vpopmail
+CERT_GID=vchkpw
