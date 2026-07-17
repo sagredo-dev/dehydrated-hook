@@ -390,6 +390,16 @@ restart_apache() {
 }
 
 
+# restart the servers
+restart_servers() {
+  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
+    restart_qmail
+    restart_dovecot
+  fi
+  restart_apache
+}
+
+
 startup() {
   echo
   echo ==================================================

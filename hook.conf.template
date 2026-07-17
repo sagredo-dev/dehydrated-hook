@@ -16,11 +16,11 @@ FROM_EMAIL=postmaster@domain.tld
 # The message template which will be used to draft the email alert
 MSG_TEMPLATE="$(dirname $0)/hook.tpl"
 
-########################################################################
+# ----------------------------------------------------------
 # Mail server settings
 # Put MAKE_MAIL_CERTS=0 if this is not a mail server and
 # ignore what follows
-########################################################################
+# ----------------------------------------------------------
 
 # Build certs for qmail. Put 1 only in case this is a qmail server.
 MAKE_MAIL_CERTS=1

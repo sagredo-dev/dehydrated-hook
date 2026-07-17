@@ -118,12 +118,8 @@ deploy_ocsp() {
   # cp "${OCSPFILE}" /etc/nginx/ssl/; chown -R nginx: /etc/nginx/ssl
   # systemctl reload nginx
 
-  # functions implemented in hook.inc
-  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
-    restart_qmail
-    restart_dovecot
-  fi
-  restart_apache
+  # function implemented in hook.inc
+  restart_servers
 }
 
 
