@@ -12,24 +12,6 @@
 # Roberto Puzzanghera [notes at sagredo dot eu - https://notes.sagredo.eu]
 #
 
-# Configuration for the script
-CONF_FILE="$(dirname $0)/hook.conf"
-if [ -r $CONF_FILE ]; then
-  . $CONF_FILE
-else
-  log_error "Configuration file not found: $CONF_FILE"
-  return 1 2>/dev/null || exit 1
-fi
-
-
-# Get vdominfo path
-VDOMINFO=${VPOPMAILDIR}/bin/vdominfo
-if [ ! -x $VDOMINFO ]; then
-  log_error "${VDOMINFO} not found"
-  exit 1
-fi
-
-
 # log errors
 log_error()
 {
@@ -42,6 +24,26 @@ log_info()
 {
   echo $1
 }
+
+
+# Configuration for the script
+CONF_FILE="$(dirname $0)/hook.conf"
+if [ -r $CONF_FILE ]; then
+  . $CONF_FILE
+else
+  log_error "Configuration file not found: $CONF_FILE"
+  return 1 2>/dev/null || exit 1
+fi
+
+
+# Get vdominfo path
+if [ "$MAKE_MAIL_CERTS" -eq 1 ]; then
+  VDOMINFO=${VPOPMAILDIR}/bin/vdominfo
+  if [ ! -x $VDOMINFO ]; then
+    log_error "${VDOMINFO} not found"
+    exit 1
+  fi
+fi
 
 
 # Get the default cert name by reading the 1st domain
@@ -325,13 +327,13 @@ EOF
 # This function is called by mailcert-sync.
 mailcert_sync()
 {
-  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
-    sync_qmail_certificates
+  if [ "$MAKE_MAIL_CERTS" != "1" ]; then
+    log_info "Skipping mail certificates syncronization (MAKE_MAIL_CERTS=0)."
+    return 0
   fi
 
-  if [ "$ENABLE_SNI" = "1" ]; then
-    rebuild_dovecot_sni_conf
-  fi
+  sync_qmail_certificates
+  rebuild_dovecot_sni_conf
 
   restart_qmail
   restart_dovecot
