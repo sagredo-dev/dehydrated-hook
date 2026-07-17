@@ -17,7 +17,7 @@ CONF_FILE="$(dirname $0)/hook.conf"
 if [ -r $CONF_FILE ]; then
   . $CONF_FILE
 else
-  echo "Configuration file not found: $CONF_FILE"
+  log_error "Configuration file not found: $CONF_FILE"
   return 1 2>/dev/null || exit 1
 fi
 
@@ -25,9 +25,23 @@ fi
 # Get vdominfo path
 VDOMINFO=${VPOPMAILDIR}/bin/vdominfo
 if [ ! -x $VDOMINFO ]; then
-  echo "${VDOMINFO} not found"
+  log_error "${VDOMINFO} not found"
   exit 1
 fi
+
+
+# log errors
+log_error()
+{
+  printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2
+}
+
+
+# log infos
+log_info()
+{
+  echo $1
+}
 
 
 # Get the default cert name by reading the 1st domain
@@ -107,14 +121,14 @@ install_qmail_default_cert()
   local CERTDIR=${CERTSDIR}/${CN}
 
   if ! certificate_exists $CN; then
-    echo "Certificate not found: ${CN}"
+    log_error "Certificate not found: ${CN}. Delete ${CN} from domains.txt!"
     return 1
   fi
 
   cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${QMAILDIR}/control/servercert.pem
   chown ${CERT_UID}:${CERT_GID} ${QMAILDIR}/control/servercert.pem
   chmod 640 ${QMAILDIR}/control/servercert.pem
-  echo "Installed default qmail certificate for ${CN} in ${QMAILDIR}/control/servercert.pem"
+  log_info "Installed default qmail certificate for ${CN} in ${QMAILDIR}/control/servercert.pem"
 }
 
 
@@ -127,7 +141,7 @@ install_qmail_sni_cert()
   local TARGETDIR=${QMAILDIR}/control/servercerts/${CN}
 
   if ! certificate_exists $CN; then
-    echo "Certificate not found: ${CN}"
+    log_error "Certificate not found: ${CN}. Delete ${CN} from domains.txt!"
     return 1
   fi
 
@@ -136,7 +150,7 @@ install_qmail_sni_cert()
   chown ${CERT_UID}:${CERT_GID} ${TARGETDIR}/servercert.pem
   chmod 640 ${TARGETDIR}/servercert.pem
 
-  echo "Installed qmail certificate for ${CN} in ${TARGETDIR}/servercert.pem"
+  log_info "Installed qmail certificate for ${CN} in ${TARGETDIR}/servercert.pem"
 }
 
 
@@ -192,7 +206,7 @@ add_dovecot_sni_block()
   local DOMAIN=$(find_vpopmail_domain ${CERTNAME})
 
   if [ -z "$DOMAIN" ]; then
-    echo "Cannot find vpopmail domain for ${CERTNAME}"
+    log_error "Cannot find vpopmail domain for ${CERTNAME}"
     return 1
   fi
 
@@ -208,7 +222,7 @@ local_name *.${DOMAIN} {
 
 EOF
 
-  echo "Added dovecot SNI configuration for ${DOMAIN} in ${DOVECOT_SNI_CONF}"
+  log_info "Added dovecot SNI configuration for ${DOMAIN} in ${DOVECOT_SNI_CONF}"
 }
 
 
@@ -232,14 +246,14 @@ sync_dovecot_sni_cert()
   fi
 
   if ! certificate_exists ${CERTNAME}; then
-    echo "Certificate not found: ${CERTNAME}"
+    log_error "Certificate not found: ${CERTNAME}. Delete ${CERTNAME} from domains.txt!"
     return 1
   fi
 
   DOMAIN=$(find_vpopmail_domain ${CERTNAME})
 
   if [ -z "$DOMAIN" ]; then
-    echo "Cannot find vpopmail domain for ${CERTNAME}"
+    log_error "Cannot find vpopmail domain for ${CERTNAME}"
     return 1
   fi
 
@@ -296,14 +310,14 @@ EOF
 
     # skip missing certificates
     if ! certificate_exists ${CERTNAME}; then
-      echo "Certificate not found: ${CERTNAME}"
+      log_error "Certificate not found: ${CERTNAME}. Delete ${CERTNAME} from domains.txt!"
       continue
     fi
 
     add_dovecot_sni_block ${CERTNAME}
   done < ${DOMAINS_TXT}
 
-  echo "Rebuilt dovecot SNI configuration in ${DOVECOT_SNI_CONF}"
+  log_info "Rebuilt dovecot SNI configuration in ${DOVECOT_SNI_CONF}"
 }
 
 
@@ -342,12 +356,20 @@ send_alert()
 
 # restart qmail
 restart_qmail() {
+  if [ ! -x $QMAILCTL ]; then
+    log_error "$QMAILCTL not found"
+    return 1
+  fi
   $QMAILCTL restart
 }
 
 
 # restart dovecot
 restart_dovecot() {
+  if [ ! -x $DOVECOTCTL ]; then
+    log_error "$DOVECOTCTL not found"
+    return 1
+  fi
   $DOVECOTCTL stop
   sleep 5
   $DOVECOTCTL start
@@ -356,7 +378,11 @@ restart_dovecot() {
 
 # restart apache
 restart_apache() {
-  echo "Restarting apache"
+  if [ ! -x $APACHECTL ]; then
+    log_error "$APACHECTL not found"
+    return 1
+  fi
+  log_info "Restarting apache"
   $APACHECTL stop
   $APACHECTL start
 }
