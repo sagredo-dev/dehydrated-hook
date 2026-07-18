@@ -12,19 +12,30 @@
 # Roberto Puzzanghera [notes at sagredo dot eu - https://notes.sagredo.eu]
 #
 
-# log errors
+# ----------------------------------------------------------------------
+# Logging
+# ----------------------------------------------------------------------
+
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+RESET='\033[0m'
 log_error()
 {
-  printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2
+  printf "${RED}ERROR:${RESET} %s\n" "$*" >&2
 }
-
-
-# log infos
+log_warn()
+{
+  printf "${YELLOW}WARNING:${RESET} %s\n" "$*" >&2
+}
 log_info()
 {
-  echo $1
+  printf "${GREEN}INFO:${RESET} %s\n" "$*" >&2
 }
 
+# ----------------------------------------------------------------------
+# Configuration
+# ----------------------------------------------------------------------
 
 # Configuration for the script
 CONF_FILE="$(dirname $0)/hook.conf"
@@ -34,7 +45,6 @@ else
   log_error "Configuration file not found: $CONF_FILE"
   return 1 2>/dev/null || exit 1
 fi
-
 
 # Get vdominfo path
 if [ "$MAKE_MAIL_CERTS" -eq 1 ]; then
@@ -46,19 +56,9 @@ if [ "$MAKE_MAIL_CERTS" -eq 1 ]; then
 fi
 
 
-# Get the default cert name by reading the 1st domain
-# in 1st line of domain.txt
-#
-# smtp.example.com imap.example.com pop3.example.com
-# smtp.example2.com imap.example2.com pop3.example2.com
-# returns smtp.example.com
-get_default_cert()
-{
-  local CN
-  read -r CN _ < "$DOMAINS_TXT"
-  echo "$CN"
-}
-
+# ----------------------------------------------------------------------
+# Domains
+# ----------------------------------------------------------------------
 
 # Read domains.txt and return each certificate entry with its type.
 # The first domain is the default certificate, all following domains use SNI.
@@ -82,6 +82,29 @@ read_domains_txt()
   done < $DOMAINS_TXT
 }
 
+# Read domains.txt and return each certificate entry with all SANs.
+# The first domain is the default certificate, all following domains use SNI.
+read_domains_txt_full()
+{
+  local DEFAULT=1
+  local CN
+  local SAN
+
+  while read -r CN SAN; do
+    [ -z "$CN" ] && continue
+
+    case "$CN" in
+      \#*) continue ;;
+    esac
+
+    if [ "$DEFAULT" -eq 1 ]; then
+      DEFAULT=0
+      echo "DEFAULT $CN $SAN"
+    else
+      echo "SNI $CN $SAN"
+    fi
+  done < ${DOMAINS_TXT}
+}
 
 # Find the vpopmail domain matching a certificate CN.
 # Domains and aliases are considered valid entries.
@@ -105,6 +128,23 @@ find_vpopmail_domain()
 }
 
 
+# ----------------------------------------------------------------------
+# Certificate helpers
+# ----------------------------------------------------------------------
+
+# Get the default cert name by reading the 1st domain
+# in 1st line of domain.txt
+#
+# smtp.example.com imap.example.com pop3.example.com
+# smtp.example2.com imap.example2.com pop3.example2.com
+# returns smtp.example.com
+get_default_cert()
+{
+  local CN
+  read -r CN _ < "$DOMAINS_TXT"
+  echo "$CN"
+}
+
 # Check if the certificate files exist.
 certificate_exists()
 {
@@ -115,6 +155,10 @@ certificate_exists()
 }
 
 
+# ----------------------------------------------------------------------
+# qmail
+# ----------------------------------------------------------------------
+
 # Install the default qmail certificate.
 # The default certificate is the first entry in domains.txt.
 install_qmail_default_cert()
@@ -123,7 +167,7 @@ install_qmail_default_cert()
   local CERTDIR=${CERTSDIR}/${CN}
 
   if ! certificate_exists $CN; then
-    log_error "Certificate not found: ${CN}. Delete ${CN} from domains.txt!"
+    log_error "Certificate not found: ${CN}. Please delete ${CN} from domains.txt!"
     return 1
   fi
 
@@ -132,7 +176,6 @@ install_qmail_default_cert()
   chmod 640 ${QMAILDIR}/control/servercert.pem
   log_info "Installed default qmail certificate for ${CN} in ${QMAILDIR}/control/servercert.pem"
 }
-
 
 # Install a qmail SNI certificate.
 # The certificate name is the CN of the certificate entry.
@@ -143,7 +186,7 @@ install_qmail_sni_cert()
   local TARGETDIR=${QMAILDIR}/control/servercerts/${CN}
 
   if ! certificate_exists $CN; then
-    log_error "Certificate not found: ${CN}. Delete ${CN} from domains.txt!"
+    log_error "Certificate not found: ${CN}. Please delete ${CN} from domains.txt!"
     return 1
   fi
 
@@ -154,7 +197,6 @@ install_qmail_sni_cert()
 
   log_info "Installed qmail certificate for ${CN} in ${TARGETDIR}/servercert.pem"
 }
-
 
 # Synchronize a single qmail certificate.
 # Called by dehydrated deploy_cert.
@@ -171,7 +213,6 @@ sync_qmail_cert()
     install_qmail_sni_cert $CN
   fi
 }
-
 
 # Synchronize qmail certificates from domains.txt.
 sync_qmail_certificates()
@@ -191,6 +232,10 @@ sync_qmail_certificates()
 }
 
 
+# ----------------------------------------------------------------------
+# Dovecot
+# ----------------------------------------------------------------------
+
 # Return success if the dovecot SNI block already exists.
 dovecot_sni_block_exists()
 {
@@ -198,7 +243,6 @@ dovecot_sni_block_exists()
 
   grep -Fq "local_name ${DOMAIN} {" ${DOVECOT_SNI_CONF}
 }
-
 
 # Add dovecot SNI blocks for a certificate.
 # The certificate is identified by its dehydrated certificate name.
@@ -227,7 +271,6 @@ EOF
   log_info "Added dovecot SNI configuration for ${DOMAIN} in ${DOVECOT_SNI_CONF}"
 }
 
-
 # Synchronize a single dovecot SNI certificate.
 # Called by dehydrated deploy_cert.
 sync_dovecot_sni_cert()
@@ -248,7 +291,7 @@ sync_dovecot_sni_cert()
   fi
 
   if ! certificate_exists ${CERTNAME}; then
-    log_error "Certificate not found: ${CERTNAME}. Delete ${CERTNAME} from domains.txt!"
+    log_error "Certificate not found: ${CERTNAME}. Please delete ${CERTNAME} from domains.txt!"
     return 1
   fi
 
@@ -265,7 +308,6 @@ sync_dovecot_sni_cert()
 
   add_dovecot_sni_block ${CERTNAME}
 }
-
 
 # Rebuild dovecot SNI configuration from domains.txt.
 # The first certificate entry is the default qmail certificate and is skipped.
@@ -312,7 +354,7 @@ EOF
 
     # skip missing certificates
     if ! certificate_exists ${CERTNAME}; then
-      log_error "Certificate not found: ${CERTNAME}. Delete ${CERTNAME} from domains.txt!"
+      log_error "Certificate not found: ${CERTNAME}. Please delete ${CERTNAME} from domains.txt!"
       continue
     fi
 
@@ -322,6 +364,75 @@ EOF
   log_info "Rebuilt dovecot SNI configuration in ${DOVECOT_SNI_CONF}"
 }
 
+
+# ----------------------------------------------------------------------
+# Apache
+# ----------------------------------------------------------------------
+
+# Rebuild Apache SNI configuration from domains.txt.
+# The first certificate becomes the ServerName, all others become
+# ServerAlias directives. Entries not matching a vpopmail domain
+# are skipped.
+rebuild_apache_sni_conf()
+{
+  local TYPE
+  local CN
+  local SAN
+  local DOMAIN
+
+  if [ "$ENABLE_SNI" != "1" ]; then
+    return 0
+  fi
+
+  if [ "$ENABLE_APACHE_SNI_CONF" != "1" ]; then
+    return 0
+  fi
+
+  mkdir -p $(dirname ${APACHE_SNI_CONF})
+
+  cat > ${APACHE_SNI_CONF} << EOF
+# ----------------------------------------------------------------------
+# This file is automatically generated.
+#
+# Do not edit this file manually.
+#
+# The configuration is rebuilt from ${DOMAINS_TXT}.
+# Manual changes will be lost.
+# ----------------------------------------------------------------------
+
+EOF
+
+  {
+    while read TYPE CN SAN; do
+      if ! DOMAIN=$(find_vpopmail_domain ${CN}); then
+        log_warn "Skipping Apache configuration for ${CN}: vpopmail domain not found"
+        continue
+      fi
+
+      case "$TYPE" in
+        DEFAULT)
+          echo "ServerName ${CN}"
+
+          if [ -n "$SAN" ]; then
+            echo "ServerAlias ${SAN}"
+          fi
+          ;;
+
+        SNI)
+          echo "ServerAlias ${CN} ${SAN}"
+          ;;
+      esac
+
+    done < <(read_domains_txt_full)
+  } >> ${APACHE_SNI_CONF}
+
+  log_info "Rebuilt Apache SNI configuration in ${APACHE_SNI_CONF}"
+}
+
+
+# ----------------------------------------------------------------------
+# Synchronization
+# ----------------------------------------------------------------------
 
 # Synchronize qmail and dovecot certificates.
 # This function is called by mailcert-sync.
@@ -334,27 +445,15 @@ mailcert_sync()
 
   sync_qmail_certificates
   rebuild_dovecot_sni_conf
+  rebuild_apache_sni_conf
 
-  restart_qmail
-  restart_dovecot
+  restart_servers
 }
 
 
-# Send email alert to admin.
-send_alert()
-{
-  local DOMAIN=$1
-  local CERT_PATH=${CERTSDIR}/${DOMAIN}/cert.pem
-  local EXPIRY=$(openssl x509 -noout -dates -in ${CERT_PATH} |grep notAfter |cut -d= -f2- |tr -s ' ' |cut -d' ' -f1,2,4)
-  local DAYS_LEFT=$((($(date -d "$EXPIRY" +%s) - $(date -d "$(date +%F)" +%s))/86400))
-
-  cat $MSG_TEMPLATE \
-    | sed -e "s,@DOMAIN@,$DOMAIN,g" \
-          -e "s,@FROM_EMAIL@,$FROM_EMAIL,g" \
-          -e "s,@OWNER_EMAIL@,$OWNER_EMAIL,g" \
-    | $QMAILDIR/bin/sendmail $OWNER_EMAIL
-}
-
+# ----------------------------------------------------------------------
+# Servers
+# ----------------------------------------------------------------------
 
 # restart qmail
 restart_qmail() {
@@ -364,7 +463,6 @@ restart_qmail() {
   fi
   $QMAILCTL restart
 }
-
 
 # restart dovecot
 restart_dovecot() {
@@ -376,7 +474,6 @@ restart_dovecot() {
   sleep 5
   $DOVECOTCTL start
 }
-
 
 # restart apache
 restart_apache() {
@@ -400,10 +497,29 @@ restart_servers() {
 }
 
 
+# ----------------------------------------------------------------------
+# Utility functions
+# ----------------------------------------------------------------------
+
 startup() {
   echo
   echo ==================================================
   echo
   date
   echo
+}
+
+# Send email alert to admin.
+send_alert()
+{
+  local DOMAIN=$1
+  local CERT_PATH=${CERTSDIR}/${DOMAIN}/cert.pem
+  local EXPIRY=$(openssl x509 -noout -dates -in ${CERT_PATH} |grep notAfter |cut -d= -f2- |tr -s ' ' |cut -d' ' -f1,2,4)
+  local DAYS_LEFT=$((($(date -d "$EXPIRY" +%s) - $(date -d "$(date +%F)" +%s))/86400))
+
+  cat $MSG_TEMPLATE \
+    | sed -e "s,@DOMAIN@,$DOMAIN,g" \
+          -e "s,@FROM_EMAIL@,$FROM_EMAIL,g" \
+          -e "s,@OWNER_EMAIL@,$OWNER_EMAIL,g" \
+    | $QMAILDIR/bin/sendmail $OWNER_EMAIL
 }

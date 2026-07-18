@@ -32,8 +32,17 @@ ENABLE_SNI=0
 
 # dovecot config file generated from domains.txt.
 # Do not edit manually.
-# Ignored you have ENABLE_SNI=0
+# Ignored if ENABLE_SNI=0
 DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
+
+# Put 1 to add entries to the $APACHE_SNI_DOMAINS file
+ENABLE_APACHE_SNI_CONF=0
+
+# apache config file where to save ServerAlias entries for SNI like
+# ServerAlias smtp.example.tld imap.example.tld pop3.example.tld
+# Do not edit manually
+# Ignored if ENABLE_SNI=0
+APACHE_SNI_CONF=/etc/httpd/sni.conf
 
 # Put here the user and group who owns the qmail certificates.
 # It has to be the user who runs qmail-smtpd.
