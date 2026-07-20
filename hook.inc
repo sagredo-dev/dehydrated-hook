@@ -191,6 +191,7 @@ install_qmail_sni_cert()
   fi
 
   mkdir -p ${TARGETDIR}
+  chown ${CERT_UID}:${CERT_GID} ${TARGETDIR}
   cat ${CERTDIR}/privkey.pem ${CERTDIR}/fullchain.pem > ${TARGETDIR}/servercert.pem
   chown ${CERT_UID}:${CERT_GID} ${TARGETDIR}/servercert.pem
   chmod 640 ${TARGETDIR}/servercert.pem
