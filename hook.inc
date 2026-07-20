@@ -167,7 +167,7 @@ install_qmail_default_cert()
   local CERTDIR=${CERTSDIR}/${CN}
 
   if ! certificate_exists $CN; then
-    log_error "Certificate not found: ${CN}. Please delete ${CN} from domains.txt!"
+    log_error "Certificate not found: ${CN}"
     return 1
   fi
 
@@ -186,7 +186,7 @@ install_qmail_sni_cert()
   local TARGETDIR=${QMAILDIR}/control/servercerts/${CN}
 
   if ! certificate_exists $CN; then
-    log_error "Certificate not found: ${CN}. Please delete ${CN} from domains.txt!"
+    log_error "Certificate not found: ${CN}"
     return 1
   fi
 
@@ -291,7 +291,7 @@ sync_dovecot_sni_cert()
   fi
 
   if ! certificate_exists ${CERTNAME}; then
-    log_error "Certificate not found: ${CERTNAME}. Please delete ${CERTNAME} from domains.txt!"
+    log_error "Certificate not found: ${CERTNAME}"
     return 1
   fi
 
@@ -354,7 +354,7 @@ EOF
 
     # skip missing certificates
     if ! certificate_exists ${CERTNAME}; then
-      log_error "Certificate not found: ${CERTNAME}. Please delete ${CERTNAME} from domains.txt!"
+      log_error "Certificate not found: ${CERTNAME}"
       continue
     fi
 

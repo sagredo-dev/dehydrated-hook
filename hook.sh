@@ -96,6 +96,7 @@ deploy_cert() {
   # functions to be implemented in hook.inc
   sync_qmail_cert $DOMAIN
   sync_dovecot_sni_cert $DOMAIN
+  restart_servers
 }
 
 deploy_ocsp() {
@@ -117,9 +118,6 @@ deploy_ocsp() {
   # Simple example: Copy file to nginx config
   # cp "${OCSPFILE}" /etc/nginx/ssl/; chown -R nginx: /etc/nginx/ssl
   # systemctl reload nginx
-
-  # function implemented in hook.inc
-  restart_servers
 }
 
 
