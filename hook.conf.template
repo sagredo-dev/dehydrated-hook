@@ -2,8 +2,15 @@ DOMAINS_TXT=/etc/dehydrated/domains.txt
 CERTSDIR=/etc/dehydrated/certs
 QMAILDIR=/var/qmail
 QMAILCTL=${QMAILDIR}/bin/qmailctl
-DOVECOTCTL=/usr/local/bin/dovecotctl
-APACHECTL=/usr/sbin/apachectl
+DOVEADM=/usr/local/bin/doveADM
+
+# Command used to reload the web server after certificate deployment
+# Examples:
+# RELOAD_WEBSERVER_CMD="systemctl reload httpd"
+# RELOAD_WEBSERVER_CMD="apachectl graceful"
+# RELOAD_WEBSERVER_CMD="nginx -s reload"
+RELOAD_WEBSERVER_CMD="systemctl reload httpd"
+
 # Get vpopmail directory. Ignored if ENABLE_SNI=0
 VPOPMAILDIR=/home/vpopmail
 
@@ -16,11 +23,12 @@ FROM_EMAIL=postmaster@domain.tld
 # The message template which will be used to draft the email alert
 MSG_TEMPLATE="$(dirname $0)/hook.tpl"
 
-# ----------------------------------------------------------
-# Mail server settings
+
+# ---- Mail server settings ---------------------------------------------
+#
 # Put MAKE_MAIL_CERTS=0 if this is not a mail server and
 # ignore what follows
-# ----------------------------------------------------------
+# -----------------------------------------------------------------------
 
 # Build certs for qmail. Put 1 only in case this is a qmail server.
 MAKE_MAIL_CERTS=1
@@ -41,7 +49,7 @@ ENABLE_APACHE_SNI_CONF=0
 # apache config file where to save ServerAlias entries for SNI like
 # ServerAlias smtp.example.tld imap.example.tld pop3.example.tld
 # Do not edit manually
-# Ignored if ENABLE_SNI=0
+# Ignored if ENABLE_SNI=0 or ENABLE_APACHE_SNI_CONF=0
 APACHE_SNI_CONF=/etc/httpd/sni.conf
 
 # Put here the user and group who owns the qmail certificates.

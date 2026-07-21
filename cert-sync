@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# This script serves to sync qmail and dovecot configuration once
-# the sys admin modified domains.txt, with no need to wait for
+# This script serves to sync qmail, dovecot and (eventually) apache configuration
+# once the sys admin modified domains.txt, with no need to wait for
 # 'dehydrated -c' to run.
 # So if you delete a domain from domains.txt or reorganize the SAN in it,
-# without touching the existing certificates,just run this script.
+# without touching the existing certificates, just run this script.
 
 HOOK_INC=$(dirname $0)/hook.inc
 
@@ -15,4 +15,4 @@ fi
 
 . $HOOK_INC
 
-mailcert_sync
+cert_sync

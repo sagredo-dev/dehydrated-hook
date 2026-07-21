@@ -55,6 +55,70 @@ if [ "$MAKE_MAIL_CERTS" -eq 1 ]; then
   fi
 fi
 
+# Runtime flag created by deploy_cert() when at least one certificate is changed
+SCRIPT_DIR=$(dirname "$0")
+CERT_CHANGED_FLAG=${SCRIPT_DIR}/dehydrated.changed
+
+# Always turn off SNI configuration for non-mailservers
+if [ "$MAKE_MAIL_CERTS" != "1" ]; then
+  ENABLE_SNI=0
+fi
+
+
+# ----------------------------------------------------------------------
+# Servers
+# ----------------------------------------------------------------------
+
+# restart qmail
+restart_qmail() {
+  if [ ! -x $QMAILCTL ]; then
+    log_error "$QMAILCTL not found"
+    return 1
+  fi
+
+  if $QMAILCTL restart >/dev/null 2>&1; then
+    log_info "qmail restarted successfully"
+  else
+    log_error "qmail restart failed"
+    return 1
+  fi
+}
+
+# restart dovecot
+reload_dovecot() {
+  if [ ! -x $DOVEADM ]; then
+    log_error "$DOVEADM not found"
+    return 1
+  fi
+
+  if ! $DOVEADM reload; then
+    log_error "$DOVEADM reload failed"
+    return 1
+  else
+    log_info "Dovecot reloaded successfully"
+  fi
+}
+
+# reload the webserver
+reload_webserver()
+{
+  if sh -c "$RELOAD_WEBSERVER_CMD"; then
+    log_info "Web server reloaded successfully"
+  else
+    log_error "Web server reload failed: $RELOAD_WEBSERVER_CMD"
+    return 1
+  fi
+}
+
+# restart the servers
+restart_servers() {
+  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
+    restart_qmail
+    reload_dovecot
+  fi
+  reload_webserver
+}
+
 
 # ----------------------------------------------------------------------
 # Domains
@@ -132,19 +196,6 @@ find_vpopmail_domain()
 # Certificate helpers
 # ----------------------------------------------------------------------
 
-# Get the default cert name by reading the 1st domain
-# in 1st line of domain.txt
-#
-# smtp.example.com imap.example.com pop3.example.com
-# smtp.example2.com imap.example2.com pop3.example2.com
-# returns smtp.example.com
-get_default_cert()
-{
-  local CN
-  read -r CN _ < "$DOMAINS_TXT"
-  echo "$CN"
-}
-
 # Check if the certificate files exist.
 certificate_exists()
 {
@@ -198,22 +249,6 @@ install_qmail_sni_cert()
   chmod 640 ${TARGETDIR}/servercert.pem
 
   log_info "Installed qmail certificate for ${CN} in ${TARGETDIR}/servercert.pem"
-}
-
-# Synchronize a single qmail certificate.
-# Called by dehydrated deploy_cert.
-sync_qmail_cert()
-{
-  local CN=$1
-  local DEFAULT
-
-  DEFAULT=$(get_default_cert)
-
-  if [ "$CN" = "$DEFAULT" ]; then
-    install_qmail_default_cert $CN
-  elif [ "$ENABLE_SNI" = "1" ]; then
-    install_qmail_sni_cert $CN
-  fi
 }
 
 # Synchronize qmail certificates from domains.txt.
@@ -273,44 +308,6 @@ EOF
   log_info "Added dovecot SNI configuration for ${DOMAIN} in ${DOVECOT_SNI_CONF}"
 }
 
-# Synchronize a single dovecot SNI certificate.
-# Called by dehydrated deploy_cert.
-sync_dovecot_sni_cert()
-{
-  local CERTNAME=$1
-  local DEFAULT
-  local DOMAIN
-
-  if [ "$ENABLE_SNI" != "1" ]; then
-    return 0
-  fi
-
-  DEFAULT=$(get_default_cert)
-
-  # The default certificate is managed by dovecot configuration.
-  if [ "$CERTNAME" = "$DEFAULT" ]; then
-    return 0
-  fi
-
-  if ! certificate_exists ${CERTNAME}; then
-    log_error "Certificate not found: ${CERTNAME}"
-    return 1
-  fi
-
-  DOMAIN=$(find_vpopmail_domain ${CERTNAME})
-
-  if [ -z "$DOMAIN" ]; then
-    log_error "Cannot find vpopmail domain for ${CERTNAME}"
-    return 1
-  fi
-
-  if dovecot_sni_block_exists ${DOMAIN}; then
-    return 0
-  fi
-
-  add_dovecot_sni_block ${CERTNAME}
-}
-
 # Rebuild dovecot SNI configuration from domains.txt.
 # The first certificate entry is the default qmail certificate and is skipped.
 rebuild_dovecot_sni_conf()
@@ -334,8 +331,11 @@ rebuild_dovecot_sni_conf()
 # The configuration is rebuilt from ${DOMAINS_TXT} and the existing
 # certificates under ${CERTSDIR}.
 #
-# Manual changes will be lost the next time mailcert-sync runs or a
+# Manual changes will be lost the next time cert-sync runs or a
 # certificate is synchronized.
+#
+# Add the following in your local.conf to include this file
+# !include_try sni.conf
 # ----------------------------------------------------------------------
 
 EOF
@@ -436,66 +436,33 @@ EOF
 # Synchronization
 # ----------------------------------------------------------------------
 
-# Synchronize qmail and dovecot certificates.
-# This function is called by mailcert-sync.
-mailcert_sync()
+# Synchronize mail-related certificate configuration and reload mail services.
+sync_mail_certificates()
 {
   if [ "$MAKE_MAIL_CERTS" != "1" ]; then
-    log_info "Skipping mail certificates syncronization (MAKE_MAIL_CERTS=0)."
-    return 0
+    log_info "Skipping mail certificates synchronization (MAKE_MAIL_CERTS=0)."
+    return
   fi
 
   sync_qmail_certificates
+  restart_qmail
   rebuild_dovecot_sni_conf
+  reload_dovecot
+}
+
+# Synchronize web server certificate configuration and reload the web server.
+sync_web_certificates()
+{
   rebuild_apache_sni_conf
-
-  restart_servers
+  reload_webserver
 }
 
-
-# ----------------------------------------------------------------------
-# Servers
-# ----------------------------------------------------------------------
-
-# restart qmail
-restart_qmail() {
-  if [ ! -x $QMAILCTL ]; then
-    log_error "$QMAILCTL not found"
-    return 1
-  fi
-  $QMAILCTL restart
-}
-
-# restart dovecot
-restart_dovecot() {
-  if [ ! -x $DOVECOTCTL ]; then
-    log_error "$DOVECOTCTL not found"
-    return 1
-  fi
-  $DOVECOTCTL stop
-  sleep 5
-  $DOVECOTCTL start
-}
-
-# restart apache
-restart_apache() {
-  if [ ! -x $APACHECTL ]; then
-    log_error "$APACHECTL not found"
-    return 1
-  fi
-  log_info "Restarting apache"
-  $APACHECTL stop
-  $APACHECTL start
-}
-
-
-# restart the servers
-restart_servers() {
-  if [ "$MAKE_MAIL_CERTS" = "1" ]; then
-    restart_qmail
-    restart_dovecot
-  fi
-  restart_apache
+# Synchronize certificates.
+# This function is also called by cert-sync.
+cert_sync()
+{
+  sync_mail_certificates
+  sync_web_certificates
 }
 
 
