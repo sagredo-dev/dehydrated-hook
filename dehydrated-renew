@@ -25,7 +25,7 @@ fi
 
 rm -f $CERT_CHANGED_FLAG
 
-/usr/bin/dehydrated -c -g -x
+/usr/bin/dehydrated -c -g
 
 if [ -f $CERT_CHANGED_FLAG ]; then
   cert_sync
