@@ -1,8 +1,8 @@
-DOMAINS_TXT=/etc/dehydrated/domains.txt
-CERTSDIR=/etc/dehydrated/certs
-QMAILDIR=/var/qmail
-QMAILCTL=${QMAILDIR}/bin/qmailctl
-DOVEADM=/usr/local/bin/doveADM
+# email address where alerts are sent on failures
+OWNER_EMAIL=owner@domain.tld
+
+# sender address
+FROM_EMAIL=postmaster@domain.tld
 
 # Command used to reload the web server after certificate deployment
 # Examples:
@@ -11,17 +11,13 @@ DOVEADM=/usr/local/bin/doveADM
 # RELOAD_WEBSERVER_CMD="nginx -s reload"
 RELOAD_WEBSERVER_CMD="systemctl reload httpd"
 
-# Get vpopmail directory. Ignored if ENABLE_SNI=0
-VPOPMAILDIR=/home/vpopmail
-
-# email address where alerts are sent on failures
-OWNER_EMAIL=owner@domain.tld
-
-# sender address
-FROM_EMAIL=postmaster@domain.tld
-
 # The message template which will be used to draft the email alert
 MSG_TEMPLATE="$(dirname $0)/hook.tpl"
+
+# domains.txt path
+DOMAINS_TXT=/etc/dehydrated/domains.txt
+# certificates' dir
+CERTSDIR=/etc/dehydrated/certs
 
 
 # ---- Mail server settings ---------------------------------------------
@@ -46,11 +42,21 @@ DOVECOT_SNI_CONF=/usr/local/dovecot/etc/dovecot/sni.conf
 # Put 1 to add entries to the $APACHE_SNI_DOMAINS file
 ENABLE_APACHE_SNI_CONF=0
 
+# qmail dir
+QMAILDIR=/var/qmail
+# qmailctl command
+QMAILCTL=${QMAILDIR}/bin/qmailctl
+# doveadm command
+DOVEADM=/usr/local/dovecot/bin/doveadm
+
 # apache config file where to save ServerAlias entries for SNI like
 # ServerAlias smtp.example.tld imap.example.tld pop3.example.tld
 # Do not edit manually
 # Ignored if ENABLE_SNI=0 or ENABLE_APACHE_SNI_CONF=0
 APACHE_SNI_CONF=/etc/httpd/sni.conf
+
+# Get vpopmail directory. Ignored if ENABLE_SNI=0
+VPOPMAILDIR=/home/vpopmail
 
 # Put here the user and group who owns the qmail certificates.
 # It has to be the user who runs qmail-smtpd.
