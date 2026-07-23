@@ -37,5 +37,5 @@
 - May 18, 2023
   - added the option --key-type rsa to the certbot command, to avoid that certbot will silently
     default to ECDSA the private key format, which results not understandable by my openssl-1.1.
-    In this way the format of the private key will be RSA. More info here.
+    In this way the format of the private key will be RSA. More info [here](https://community.letsencrypt.org/t/getting-a-rsa-privkey-from-the-letsencrypt-generated-pem/188797).
 
