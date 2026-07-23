@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #
 # hook script for qmail, dovecot, apache.
-# It can handle SNI or skip mail sertver cert config.
+#
+# Included by hook.sh, cert-sync and dehydrated-renew
+#
+# It can handle SNI or skip mail server cert config.
 # See hook.conf.template for more info
 #
 # More info
@@ -10,7 +13,7 @@
 # https://notes.sagredo.eu/en/qmail-notes-185/server-name-indication-sni-for-qmail-and-dovecot-331.html
 #
 # Roberto Puzzanghera [notes at sagredo dot eu - https://notes.sagredo.eu]
-#
+
 
 # ----------------------------------------------------------------------
 # Logging
