@@ -23,7 +23,7 @@ Customized hook script for `qmail`/`dovecot`/`apache` based servers using [`dehy
 
   ```51 2 6 * * root /etc/dehydrated/scripts/dehydrated-renew -c -g >> /var/log/dehydrated 2>&1```
 
-## More info and support:
+## More info and support
 
 - [Installing a Let's Encrypt certificate for your qmail, dovecot and apache servers](https://www.sagredo.eu/en/qmail-notes-185/installing-a-let-s-encrypt-certificate-for-your-qmail-dovecot-and-apache-servers-233.html).
 - [Server Name Indication (SNI) for qmail and dovecot](https://notes.sagredo.eu/en/qmail-notes-185/server-name-indication-sni-for-qmail-and-dovecot-331.html)
