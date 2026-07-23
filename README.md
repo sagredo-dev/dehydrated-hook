@@ -17,9 +17,10 @@ Customized hook script for `qmail`/`dovecot`/`apache` based servers using [`dehy
 
   ```cp -p hook.conf.template hook.conf```
 
-- If not interested in hnadling `qmail`/`dovecot` certs, just set `MAKE_MAIL_CERTS=0`.
-- If you set `MAKE_MAIL_CERTS=1` and `ENABLE_SNI=1`, then Server Name Indication (SNI) for `qmail`, `dovecot` and eventually `apache` (`ENABLE_APACHE_SNI_CONF=1`) are handled.
-- Setup a cronjob. The `dehydrated-renew` scrfipt is used to reload the services only when all certs are deployed: 
+- If not interested in handling `qmail`/`dovecot` certificates, just set `MAKE_MAIL_CERTS=0`.
+- If you set `MAKE_MAIL_CERTS=1` the default certificate for `qmail` is installed in _QMAILDIR/control/servercert.pem_.
+- If you set `ENABLE_SNI=1` Server Name Indication (SNI) settings for `qmail`, `dovecot` and eventually `apache` (`ENABLE_APACHE_SNI_CONF=1`) are handled. Certificates for SNI domains are installed in _QMAILDIR/control/servercerts/<FQDN>/servercert.pem_.
+- Setup a cronjob. The `dehydrated-renew` script is used to reload the services only when all certs are deployed. For example:
 
   ```0 2 6 * * root /etc/dehydrated/scripts/dehydrated-renew -c -g >> /var/log/dehydrated 2>&1```
 
