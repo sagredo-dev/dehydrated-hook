@@ -93,9 +93,7 @@ deploy_cert() {
   # cp "${KEYFILE}" "${FULLCHAINFILE}" /etc/nginx/ssl/; chown -R nginx: /etc/nginx/ssl
   # systemctl reload nginx
 
-  # functions to be implemented in hook.inc
-  make_qmail_certs $DOMAIN
-  restart_apache
+  touch "$(dirname "$0")/dehydrated.changed"
 }
 
 deploy_ocsp() {

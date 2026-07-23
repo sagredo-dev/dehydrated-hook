@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# cron wrapper script for dehydrated
+# by Roberto Puzzanghera [roberto dot puzzanghera at sagredo dot eu]
+#
+# Call dehydrated -c -g and then
+# - synchronizes qmail, dovecot and apache SNI configuration (only if MAKE_MAIL_CERTS=1 and ENABLE_SNI=1)
+# - reload the server only when ALL certs are deployed
+#
+# More info here
+# https://notes.sagredo.eu/en/qmail-notes-185/installing-a-let-s-encrypt-certificate-for-your-qmail-dovecot-and-apache-servers-233.html
+# and here
+# https://notes.sagredo.eu/en/qmail-notes-185/server-name-indication-sni-for-qmail-and-dovecot-331.html
+#
+# Use like this
+# 51 2 6 * * root /etc/dehydrated/scripts/dehydrated-renew -c -g >> /var/log/dehydrated 2>&1
+
+set -e
+
+SCRIPT_DIR=$(dirname "$0")
+HOOK_INC=${SCRIPT_DIR}/hook.inc
+
+if [ ! -r $HOOK_INC ]; then
+  echo "Cannot find $HOOK_INC"
+  exit 1
+fi
+
+. $HOOK_INC
+
+rm -f $CERT_CHANGED_FLAG
+
+/usr/bin/dehydrated -c -g
+
+if [ -f $CERT_CHANGED_FLAG ]; then
+  cert_sync
+  rm -f $CERT_CHANGED_FLAG
+fi
