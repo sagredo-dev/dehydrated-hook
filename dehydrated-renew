@@ -3,6 +3,10 @@
 # cron wrapper script for dehydrated
 # by Roberto Puzzanghera [roberto dot puzzanghera at sagredo dot eu]
 #
+# Call dehydrated -c -g and then
+# - synchronizes qmail, dovecot and apache SNI configuration (only if MAKE_MAIL_CERTS=1 and ENABLE_SNI=1)
+# - reload the server only when ALL certs are deployed
+#
 # More info here
 # https://notes.sagredo.eu/en/qmail-notes-185/installing-a-let-s-encrypt-certificate-for-your-qmail-dovecot-and-apache-servers-233.html
 # and here
