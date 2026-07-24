@@ -13,7 +13,7 @@
 # https://notes.sagredo.eu/en/qmail-notes-185/server-name-indication-sni-for-qmail-and-dovecot-331.html
 #
 # Use like this
-# 51 2 6 * * root /etc/dehydrated/scripts/dehydrated-renew -c -g >> /var/log/dehydrated 2>&1
+# 51 2 6 * * root /etc/dehydrated/scripts/dehydrated-renew >> /var/log/dehydrated 2>&1
 
 set -e
 
