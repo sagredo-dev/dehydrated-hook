@@ -93,7 +93,7 @@ deploy_cert() {
   # cp "${KEYFILE}" "${FULLCHAINFILE}" /etc/nginx/ssl/; chown -R nginx: /etc/nginx/ssl
   # systemctl reload nginx
 
-  touch "$(dirname "$0")/dehydrated.changed"
+  touch "$(dirname "$0")/$CERT_CHANGED_FLAG"
 }
 
 deploy_ocsp() {
