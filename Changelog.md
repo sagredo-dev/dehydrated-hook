@@ -1,5 +1,9 @@
 # Changelog
 
+- Aug 5, 2026 (v. 4.0.1)
+  - added DEHYDRATED param to define the dehydrated binary
+  - hook.sh uses $CERT_CHANGED_FLAG
+
 - Jul 23, 2026 (v. 4.0)
   - Added a new dehydrated-renew wrapper script to execute certificate renewal and perform
     service synchronization for SNI only when one or more certificates have actually changed.
