@@ -29,7 +29,11 @@ fi
 
 rm -f $CERT_CHANGED_FLAG
 
-/usr/bin/dehydrated -c -g
+if [ -z "$DEHYDRATED" ]; then
+  echo "dehydrated not found" >&2
+  exit 1
+fi
+$DEHYDRATED -c -g
 
 if [ -f $CERT_CHANGED_FLAG ]; then
   cert_sync

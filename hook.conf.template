@@ -18,6 +18,8 @@ MSG_TEMPLATE="$(dirname $0)/hook.tpl"
 DOMAINS_TXT=/etc/dehydrated/domains.txt
 # certificates' dir
 CERTSDIR=/etc/dehydrated/certs
+# dehydrated bin
+DEHYDRATED=/usr/bin/dehydrated
 
 
 # ---- Mail server settings ---------------------------------------------
