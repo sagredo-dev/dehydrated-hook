@@ -33,7 +33,9 @@ if [ -z "$DEHYDRATED" ]; then
   echo "dehydrated not found" >&2
   exit 1
 fi
-$DEHYDRATED -c -g
+
+# can pass other options like -x
+$DEHYDRATED -c -g "$@"
 
 if [ -f $CERT_CHANGED_FLAG ]; then
   cert_sync
