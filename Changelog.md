@@ -1,5 +1,9 @@
 # Changelog
 
+- Oct 10, 2026 (v. 4.0.3)
+  - sendmail bin determined by 'command -v', instead of using the sendmail shipped by qmail
+    by default
+
 - Aug 5, 2026 (v. 4.0.2)
   - added DEHYDRATED param to define the dehydrated binary
   - hook.sh uses $CERT_CHANGED_FLAG
