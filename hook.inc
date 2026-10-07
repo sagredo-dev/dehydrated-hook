@@ -489,9 +489,15 @@ send_alert()
   local EXPIRY=$(openssl x509 -noout -dates -in ${CERT_PATH} |grep notAfter |cut -d= -f2- |tr -s ' ' |cut -d' ' -f1,2,4)
   local DAYS_LEFT=$((($(date -d "$EXPIRY" +%s) - $(date -d "$(date +%F)" +%s))/86400))
 
+  local SENDMAIL=$(command -v sendmail)
+  if [ -z "$SENDMAIL" ]; then
+    echo "sendmail not found"
+    exit 1
+  fi
+
   cat $MSG_TEMPLATE \
     | sed -e "s,@DOMAIN@,$DOMAIN,g" \
           -e "s,@FROM_EMAIL@,$FROM_EMAIL,g" \
           -e "s,@OWNER_EMAIL@,$OWNER_EMAIL,g" \
-    | $QMAILDIR/bin/sendmail $OWNER_EMAIL
+    | $SENDMAIL $OWNER_EMAIL
 }
